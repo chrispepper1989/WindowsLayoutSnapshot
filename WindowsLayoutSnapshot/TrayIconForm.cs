@@ -16,12 +16,75 @@ namespace WindowsLayoutSnapshot {
     public partial class TrayIconForm : Form {
 
         private Timer m_snapshotTimer = new Timer();
+        private Timer m_displayChangeTimer = new Timer();
         private List<Snapshot> m_snapshots = new List<Snapshot>();
         private Snapshot m_menuShownSnapshot = null;
         private Padding? m_originalTrayMenuArrowPadding = null;
         private Padding? m_originalTrayMenuTextPadding = null;
 
         internal static ContextMenuStrip me { get; set; }
+
+        private int m_lastNumMonitors = 0;
+        private int NumberOfMonitors
+        {
+            get
+            {
+                return Screen.AllScreens.Length;
+            }
+        }
+
+        bool SystemDisplayChangeMessage = false;
+        private void m_displayChangeTimer_Tick(object sender, EventArgs e)
+        {
+            if (SystemDisplayChangeMessage)
+            {
+                if (NumberOfMonitors != m_lastNumMonitors)
+                {
+                    OnDisplayChange();
+                    m_lastNumMonitors = NumberOfMonitors;
+                    SystemDisplayChangeMessage = false;
+                }
+
+               
+            }
+        }
+
+        protected override void WndProc(ref Message m){
+            const int WM_DISPLAYCHANGE = 0x007e;
+           
+            // Listen for operating system messages. 
+            switch (m.Msg){
+                case WM_DISPLAYCHANGE:
+
+
+                    SystemDisplayChangeMessage = true;
+                    break;
+            }
+            base.WndProc(ref m);
+
+             
+
+
+        }
+
+        Dictionary<int, Snapshot> numMonitorSnapShots = new Dictionary<int, Snapshot>();
+        private void OnDisplayChange(){
+         
+            //TakeSnapshot(false);
+            if (numMonitorSnapShots.ContainsKey(NumberOfMonitors))
+            {
+                //restore this config
+                numMonitorSnapShots[NumberOfMonitors].Restore(null, EventArgs.Empty);
+            } 
+        }
+
+        private void RecordSnapShotForCurrentMonitorSetUp(Snapshot snapShot){
+            if (!SystemDisplayChangeMessage){
+                int numMonitors = Screen.AllScreens.Length;
+                numMonitorSnapShots[numMonitors] = snapShot;
+            }
+        }
+
 
         public TrayIconForm() {
             InitializeComponent();
@@ -31,11 +94,16 @@ namespace WindowsLayoutSnapshot {
             m_snapshotTimer.Tick += snapshotTimer_Tick;
             m_snapshotTimer.Enabled = true;
 
+            m_displayChangeTimer.Interval = (int)TimeSpan.FromSeconds(3).TotalMilliseconds;
+            m_displayChangeTimer.Tick += m_displayChangeTimer_Tick;
+            m_displayChangeTimer.Enabled = true;
+
             me = trayMenu;
 
             TakeSnapshot(false);
         }
 
+      
         private void snapshotTimer_Tick(object sender, EventArgs e) {
             TakeSnapshot(false);
         }
@@ -44,10 +112,17 @@ namespace WindowsLayoutSnapshot {
             TakeSnapshot(true);
         }
 
-        private void TakeSnapshot(bool userInitiated) {
-            m_snapshots.Add(Snapshot.TakeSnapshot(userInitiated));
-            UpdateRestoreChoicesInMenu();
+        private Snapshot TakeSnapshot(bool userInitiated) {
+
+           
+            var snapShot = Snapshot.TakeSnapshot(userInitiated);
+            m_snapshots.Add(snapShot);
+            RecordSnapShotForCurrentMonitorSetUp(snapShot);
+            UpdateRestoreChoicesInMenu();          
+            return snapShot;
         }
+
+      
 
         private void clearSnapshotsToolStripMenuItem_Click(object sender, EventArgs e) {
             m_snapshots.Clear();

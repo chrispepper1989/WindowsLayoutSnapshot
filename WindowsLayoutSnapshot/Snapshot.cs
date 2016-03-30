@@ -13,6 +13,10 @@ namespace WindowsLayoutSnapshot {
         private Dictionary<IntPtr, WINDOWPLACEMENT> m_placements = new Dictionary<IntPtr, WINDOWPLACEMENT>();
         private List<IntPtr> m_windowsBackToTop = new List<IntPtr>();
 
+
+
+      
+
         private Snapshot(bool userInitiated) {
             EnumWindows(EvalWindow, 0);
 
